@@ -1,16 +1,15 @@
 const express = require("express");
 const jwt = require("jsonwebtoken");
 const session = require("express-session");
+const jwtSecret = require("./router/auth_users.js").JWT_SECRET;
 const customer_routes = require("./router/auth_users.js").authenticated;
 const genl_routes = require("./router/general.js").general;
-
-//Secret key
-const JWT_SECRET_KEY = "super_secret_jwt_key_987654";
 
 const app = express();
 
 app.use(express.json());
 
+//--- Not used ---
 app.use(
   "/customer",
   session({
@@ -21,21 +20,26 @@ app.use(
 );
 
 app.use("/customer/auth/*", function auth(req, res, next) {
-  if (req.session.authorization) {
-    let token = req.session.authorization["accessToken"];
-    jwt.verify(token, JWT_SECRET_KEY, (err, user) => {
-      if (!err) {
-        req.user = user;
-        next();
-      } else {
-        return res
-          .status(403)
-          .json({ message: "User not authenticated or token is invalid" });
-      }
-    });
-  } else {
-    return res.status(403).json({ message: "User not logged in." });
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.toLowerCase().startsWith("bearer ")) {
+    return res
+      .status(401)
+      .json({ message: "Please log in to access this resource" });
   }
+
+  const token = authHeader.split(" ")[1];
+
+  jwt.verify(token, jwtSecret, (err, decoded) => {
+    if (err) {
+      return res
+        .status(403)
+        .json({ message: "Access denied. Invalid access token" });
+    } else {
+      req.user = decoded;
+      next();
+    }
+  });
 });
 
 const PORT = 5000;
